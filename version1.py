@@ -416,41 +416,81 @@ class EduEvaluationApp:
         except Exception as e:
             messagebox.showerror("Xatolik", f"Savollarni saqlashda xatolik: {str(e)}")
     
+    # def show_results(self):
+    #     self.clear_window()
+    #     Label(self.root, text="Test Natijalari", font=('Arial', 16)).pack(pady=20)
+        
+    #     conn = sqlite3.connect('edu_evaluation.db')
+    #     cursor = conn.cursor()
+        
+    #     cursor.execute('''
+    #     SELECT t.nomi, r.togri_javoblar, r.foiz, r.otganmi, r.vaqt 
+    #     FROM results r
+    #     JOIN tests t ON r.test_id = t.id
+    #     WHERE t.oqituvchi_id = ?
+    #     ''', (self.current_user['id'],))
+        
+    #     results = cursor.fetchall()
+    #     conn.close()
+        
+    #     if not results:
+    #         Label(self.root, text="Hozircha natijalar mavjud emas").pack()
+    #     else:
+    #         columns = ('Test nomi', "To'g'ri javoblar", "Foiz", "Holat", "Vaqt")
+    #         tree = ttk.Treeview(self.root, columns=columns, show='headings')
+            
+    #         for col in columns:
+    #             tree.heading(col, text=col)
+    #             tree.column(col, width=120)
+            
+    #         for row in results:
+    #             holat = "O'tdi" if row[3] else "O'tmadi"
+    #             tree.insert('', END, values=(row[0], row[1], f"{row[2]:.1f}%", holat, row[4]))
+            
+    #         tree.pack(expand=True, fill=BOTH)
+        
+    #     ttk.Button(self.root, text="Orqaga", command=self.show_teacher_panel).pack(pady=20)
+    
     def show_results(self):
         self.clear_window()
-        Label(self.root, text="Test Natijalari", font=('Arial', 16)).pack(pady=20)
-        
-        conn = sqlite3.connect('edu_evaluation.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-        SELECT t.nomi, r.togri_javoblar, r.foiz, r.otganmi, r.vaqt 
-        FROM results r
-        JOIN tests t ON r.test_id = t.id
-        WHERE t.oqituvchi_id = ?
-        ''', (self.current_user['id'],))
-        
-        results = cursor.fetchall()
-        conn.close()
-        
+        Label(self.root, text="Test Natijalari", font=('Arial', 16, 'bold')).pack(pady=20)
+
+        # Ma'lumotlar bazasi bilan xavfsiz ishlash
+        with sqlite3.connect('edu_evaluation.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT t.nomi, r.togri_javoblar, r.foiz, r.otganmi, r.vaqt 
+                FROM results r
+                JOIN tests t ON r.test_id = t.id
+                WHERE t.oqituvchi_id = ?
+            ''', (self.current_user['id'],))
+            results = cursor.fetchall()
+
         if not results:
-            Label(self.root, text="Hozircha natijalar mavjud emas").pack()
+            Label(self.root, text="📌 Hozircha natijalar mavjud emas", font=('Arial', 12, 'italic')).pack(pady=10)
         else:
             columns = ('Test nomi', "To'g'ri javoblar", "Foiz", "Holat", "Vaqt")
             tree = ttk.Treeview(self.root, columns=columns, show='headings')
-            
+
+            # Ustunlar sarlavhalari
             for col in columns:
                 tree.heading(col, text=col)
-                tree.column(col, width=120)
+                tree.column(col, width=120, stretch=True)
             
+            # Rangli natijalar
+            tree.tag_configure('passed', background='#d4edda')  # Yashil (O'tdi)
+            tree.tag_configure('failed', background='#f8d7da')  # Qizil (O'tmadi)
+
             for row in results:
                 holat = "O'tdi" if row[3] else "O'tmadi"
-                tree.insert('', END, values=(row[0], row[1], f"{row[2]:.1f}%", holat, row[4]))
-            
+                tag = 'passed' if row[3] else 'failed'
+                tree.insert('', END, values=(row[0], row[1], f"{row[2]:.1f}%", holat, row[4]), tags=(tag,))
+
             tree.pack(expand=True, fill=BOTH)
-        
-        ttk.Button(self.root, text="Orqaga", command=self.show_teacher_panel).pack(pady=20)
-    
+
+        ttk.Button(self.root, text="⬅️ Orqaga", command=self.show_teacher_panel).pack(pady=20)
+
+
     def export_results_to_excel(self):
         try:
             with db_session() as conn:
