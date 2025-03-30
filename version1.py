@@ -1,3 +1,4 @@
+import pandas as pd
 import sqlite3
 import hashlib
 import os
@@ -6,8 +7,12 @@ from datetime import datetime
 from tkinter import *
 from tkinter import messagebox, ttk
 from contextlib import contextmanager
+from tkinter import filedialog, messagebox
 
-from tkinter import filedialog
+from openpyxl import load_workbook
+from openpyxl.styles import Font
+from tkinter import filedialog, messagebox
+
 
 
 
@@ -459,12 +464,49 @@ class EduEvaluationApp:
         ttk.Button(self.root, text="⬅️ Orqaga", command=self.show_teacher_panel).pack(pady=20)
 
 
+
+    # def export_results_to_excel(self):
+    #     try:
+    #         with sqlite3.connect('edu_evaluation.db') as conn:
+    #             cursor = conn.cursor()
+    #             cursor.execute('''
+    #             SELECT t.nomi, u.ism, r.togri_javoblar, r.foiz, r.otganmi, r.vaqt
+    #             FROM results r
+    #             JOIN users u ON r.oquvchi_id = u.id
+    #             JOIN tests t ON r.test_id = t.id
+    #             WHERE t.oqituvchi_id = ?
+    #             ''', (self.current_user['id'],))
+                
+    #             results = cursor.fetchall()
+
+    #         # Pandas DataFrame yaratish
+    #         df = pd.DataFrame(results, columns=["Test nomi", "O'quvchi", "To'g'ri javoblar", "Foiz", "Holat", "Vaqt"])
+            
+    #         # Holatni "O'tdi" yoki "O'tmadi" qilib o‘zgartirish
+    #         df["Holat"] = df["Holat"].apply(lambda x: "O'tdi" if x else "O'tmadi")
+
+    #         # Foydalanuvchidan fayl saqlash joyini tanlashni so‘rash
+    #         file_path = filedialog.asksaveasfilename(
+    #             defaultextension=".xlsx",
+    #             filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+    #             title="Natijalarni saqlash"
+    #         )
+            
+    #         if not file_path:  # Agar foydalanuvchi bekor qilsa, hech narsa qilinmaydi
+    #             return
+                
+    #         df.to_excel(file_path, index=False)  # Excel faylga yozish
+    #         messagebox.showinfo("Muvaffaqiyat", f"Natijalar {file_path} fayliga saqlandi!")
+
+    #     except Exception as e:
+    #         messagebox.showerror("Xatolik", f"Export qilishda xatolik: {str(e)}")
+
     def export_results_to_excel(self):
         try:
-            with db_session() as conn:
+            with sqlite3.connect('edu_evaluation.db') as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                SELECT u.ism, t.nomi, r.togri_javoblar, r.savollar_soni, r.foiz, r.otganmi, r.vaqt
+                SELECT t.nomi, u.ism, r.togri_javoblar, r.foiz, r.otganmi, r.vaqt
                 FROM results r
                 JOIN users u ON r.oquvchi_id = u.id
                 JOIN tests t ON r.test_id = t.id
@@ -472,27 +514,47 @@ class EduEvaluationApp:
                 ''', (self.current_user['id'],))
                 
                 results = cursor.fetchall()
-    
-            df = pd.DataFrame(results, columns=["O'quvchi", "Test", "To'g'ri javoblar", "Savollar soni", "Foiz", "Holat", "Vaqt"])
-            df["Holat"] = df["Holat"].apply(lambda x: "O'tdi" if x else "O'tmadi")
-            df.to_excel('natijalar.xlsx', index=False)
-            messagebox.showinfo("Muvaffaqiyatli", "Natijalar Excel fayliga saqlandi!")
 
-            # Fayl joylashuvini tanlash
+            # Pandas DataFrame yaratish
+            df = pd.DataFrame(results, columns=["Test nomi", "O'quvchi", "To'g'ri javoblar", "Foiz", "Holat", "Vaqt"])
+            df["Holat"] = df["Holat"].apply(lambda x: "O'tdi" if x else "O'tmadi")
+
+            # Foydalanuvchidan fayl saqlash joyini tanlash
             file_path = filedialog.asksaveasfilename(
                 defaultextension=".xlsx",
                 filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
                 title="Natijalarni saqlash"
             )
             
-            if not file_path:  # Agar foydalanuvchi bekor qilsa
+            if not file_path:  
                 return
                 
-            df.to_excel(file_path, index=False)
-            self.show_message("Muvaffaqiyat", f"Natijalar {file_path} fayliga saqlandi!")
+            df.to_excel(file_path, index=False, engine='openpyxl')  
+
+            # **Ustun sarlavhalarini kengaytirish**
+            wb = load_workbook(file_path)
+            ws = wb.active
             
+            for col in ws.columns:
+                max_length = 0
+                col_letter = col[0].column_letter  
+                for cell in col:
+                    try:
+                        if cell.value:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        pass
+                ws.column_dimensions[col_letter].width = max_length + 3  
+
+            # **Headerlarni bold qilish**
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+
+            wb.save(file_path)
+            messagebox.showinfo("Muvaffaqiyat", f"Natijalar {file_path} fayliga saqlandi!")
+
         except Exception as e:
-            self.show_error("Xatolik", f"Export qilishda xatolik: {str(e)}")
+            messagebox.showerror("Xatolik", f"Export qilishda xatolik: {str(e)}")
     def show_student_panel(self):
         self.clear_window()
         Label(self.root, text=f"O'quvchi paneli: {self.current_user['name']}", font=('Arial', 16)).pack(pady=20)
